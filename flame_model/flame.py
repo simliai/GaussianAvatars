@@ -30,7 +30,6 @@ FLAME_MESH_PATH = "flame_model/assets/flame/head_template_mesh.obj"
 FLAME_LMK_PATH = "flame_model/assets/flame/landmark_embedding_with_eyes.npy"
 
 # to be downloaded from https://flame.is.tue.mpg.de/download.php
-# FLAME_MODEL_PATH = "flame_model/assets/flame/generic_model.pkl"  # FLAME 2020
 FLAME_MODEL_PATH = "flame_model/assets/flame/flame2023.pkl"  # FLAME 2023 (versions w/ jaw rotation)
 FLAME_PARTS_PATH = "flame_model/assets/flame/FLAME_masks.pkl" # FLAME Vertex Masks
 
@@ -477,6 +476,66 @@ class FlameHead(nn.Module):
         self.textures_idx = torch.cat([self.textures_idx, f_teeth_upper+num_verts_uv_orig, f_teeth_lower+num_verts_uv_orig], dim=0)
 
         self.mask.update(self.faces, self.textures_idx)
+
+    def add_teeth_vert(self, vertices):
+        # get reference vertices from lips
+        vid_lip_outside_ring_upper = self.mask.get_vid_by_region(['lip_outside_ring_upper'], keep_order=True)
+
+        vid_lip_outside_ring_lower = self.mask.get_vid_by_region(['lip_outside_ring_lower'], keep_order=True)
+
+        v_lip_upper = vertices[vid_lip_outside_ring_upper]
+        v_lip_lower = vertices[vid_lip_outside_ring_lower]
+
+        # construct vertices for teeth
+        mean_dist = (v_lip_upper - v_lip_lower).norm(dim=-1, keepdim=True).mean()
+        v_teeth_middle = (v_lip_upper + v_lip_lower) / 2
+        v_teeth_middle[:, 1] = v_teeth_middle[:, [1]].mean(dim=0, keepdim=True)
+        # v_teeth_middle[:, 2] -= mean_dist * 2.5  # how far the teeth are from the lips
+        # v_teeth_middle[:, 2] -= mean_dist * 2  # how far the teeth are from the lips
+        v_teeth_middle[:, 2] -= mean_dist * 1.5  # how far the teeth are from the lips
+
+        # upper, front
+        cuda0 = torch.device('cuda:0')
+        v_teeth_upper_edge = v_teeth_middle.clone() + torch.tensor([[0, mean_dist, 0]], device=cuda0)*0.1
+        v_teeth_upper_root = v_teeth_upper_edge + torch.tensor([[0, mean_dist, 0]], device=cuda0) * 2  # scale the height of teeth
+
+        # lower, front
+        v_teeth_lower_edge = v_teeth_middle.clone() - torch.tensor([[0, mean_dist, 0]], device=cuda0)*0.1
+        # v_teeth_lower_edge -= torch.tensor([[0, 0, mean_dist]]) * 0.2  # slightly move the lower teeth to the back
+        v_teeth_lower_edge -= torch.tensor([[0, 0, mean_dist]], device=cuda0) * 0.4  # slightly move the lower teeth to the back
+        v_teeth_lower_root = v_teeth_lower_edge - torch.tensor([[0, mean_dist, 0]], device=cuda0) * 2  # scale the height of teeth
+
+        # thickness = mean_dist * 0.5
+        thickness = mean_dist * 1.
+        # upper, back
+        v_teeth_upper_root_back = v_teeth_upper_root.clone()
+        v_teeth_upper_edge_back = v_teeth_upper_edge.clone()
+        v_teeth_upper_root_back[:, 2] -= thickness  # how thick the teeth are
+        v_teeth_upper_edge_back[:, 2] -= thickness  # how thick the teeth are
+
+        # lower, back
+        v_teeth_lower_root_back = v_teeth_lower_root.clone()
+        v_teeth_lower_edge_back = v_teeth_lower_edge.clone()
+        v_teeth_lower_root_back[:, 2] -= thickness  # how thick the teeth are
+        v_teeth_lower_edge_back[:, 2] -= thickness  # how thick the teeth are
+
+        # concatenate to v_template
+        num_verts_orig = vertices.shape[0]
+        v_teeth = torch.cat([
+            v_teeth_upper_root,  # num_verts_orig + 0-14 
+            v_teeth_lower_root,  # num_verts_orig + 15-29
+            v_teeth_upper_edge,  # num_verts_orig + 30-44
+            v_teeth_lower_edge,  # num_verts_orig + 45-59
+            v_teeth_upper_root_back,  # num_verts_orig + 60-74
+            v_teeth_upper_edge_back,  # num_verts_orig + 75-89
+            v_teeth_lower_root_back,  # num_verts_orig + 90-104
+            v_teeth_lower_edge_back,  # num_verts_orig + 105-119
+        ], dim=0)
+        num_verts_teeth = v_teeth.shape[0]
+        vertices = torch.cat([vertices, v_teeth], dim=0)
+        return vertices
+
+
 
     def forward(
         self,
