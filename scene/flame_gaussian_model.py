@@ -100,13 +100,13 @@ class FlameGaussianModel(GaussianModel):
             static_offset = self.flame_param['static_offset']
 
         verts, verts_cano = self.flame_model(
-            shape[None, ...],
-            flame_param['expr'].cuda(),
-            flame_param['rotation'].cuda(),
-            flame_param['neck'].cuda(),
-            flame_param['jaw'].cuda(),
-            flame_param['eyes'].cuda(),
-            flame_param['translation'].cuda(),
+            shape=shape[None, ...],
+            expr=flame_param['expr'].cuda(),
+            # rotation=flame_param['rotation'].cuda(),
+            # neck=flame_param['neck'].cuda(),
+            jaw=flame_param['jaw'].cuda(),
+            eyes=flame_param['eyes'].cuda(),
+            # translation=flame_param['translation'].cuda(),
             zero_centered_at_root_node=False,
             return_landmarks=False,
             return_verts_cano=True,
@@ -119,13 +119,13 @@ class FlameGaussianModel(GaussianModel):
         flame_param = self.flame_param_orig if original and self.flame_param_orig != None else self.flame_param
 
         verts, verts_cano = self.flame_model(
-            flame_param['shape'][None, ...],
-            flame_param['expr'][[timestep]],
-            flame_param['rotation'][[timestep]],
-            flame_param['neck_pose'][[timestep]],
-            flame_param['jaw_pose'][[timestep]],
-            flame_param['eyes_pose'][[timestep]],
-            flame_param['translation'][[timestep]],
+            shape=flame_param['shape'][None, ...],
+            expr=flame_param['expr'][[timestep]],
+            rotation=flame_param['rotation'][[timestep]],
+            neck=flame_param['neck_pose'][[timestep]],
+            jaw=flame_param['jaw_pose'][[timestep]],
+            eyes=flame_param['eyes_pose'][[timestep]],
+            tranlation=flame_param['translation'][[timestep]],
             zero_centered_at_root_node=False,
             return_landmarks=False,
             return_verts_cano=True,

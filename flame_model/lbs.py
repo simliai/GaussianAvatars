@@ -20,6 +20,8 @@ from __future__ import division
 
 import torch
 import torch.nn.functional as F
+from pytorch3d.transforms import rotation_6d_to_matrix
+
 
 
 def batch_rodrigues(rot_vecs, epsilon=1e-8, dtype=torch.float32):
@@ -157,9 +159,7 @@ def lbs(
     # N x J x 3 x 3
     ident = torch.eye(3, dtype=dtype, device=device)
     if pose2rot:
-        rot_mats = batch_rodrigues(pose.view(-1, 3), dtype=dtype).view(
-            [batch_size, -1, 3, 3]
-        )
+        rot_mats = rotation_6d_to_matrix(pose.view(-1, 6)).view([batch_size, -1, 3, 3])
 
         pose_feature = (rot_mats[:, 1:, :, :] - ident).view([batch_size, -1])
         # (N x P) x (P, V * 3) -> N x V x 3

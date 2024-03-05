@@ -18,6 +18,7 @@
 
 
 from .lbs import lbs, vertices2landmarks, blend_shapes, vertices2joints
+from pytorch3d.transforms import rotation_6d_to_matrix, matrix_to_rotation_6d
 
 import torch
 import torch.nn as nn
@@ -541,11 +542,11 @@ class FlameHead(nn.Module):
         self,
         shape,
         expr,
-        rotation,
-        neck,
-        jaw,
-        eyes,
-        translation,
+        rotation=None,
+        neck=None,
+        jaw=None,
+        eyes=None,
+        translation=None,
         zero_centered_at_root_node=False,  # otherwise, zero centered at the face
         return_landmarks=True,
         return_verts_cano=False,
@@ -562,6 +563,18 @@ class FlameHead(nn.Module):
             landmarks: N X number of landmarks X 3
         """
         batch_size = shape.shape[0]
+        I = matrix_to_rotation_6d(torch.cat([torch.eye(3)[None]] * batch_size, dim=0).cuda())
+
+        if translation is None:
+            translation = torch.zeros(batch_size, 3).cuda()
+        if rotation is None:
+            rotation = I.clone()
+        if neck is None:
+            neck = I.clone()
+        if jaw is None:
+            jaw = I.clone()
+        if eyes is None:
+            eyes = torch.cat([I.clone()] * 2, dim=1)
 
         betas = torch.cat([shape, expr], dim=1)
         full_pose = torch.cat([rotation, neck, jaw, eyes], dim=1)

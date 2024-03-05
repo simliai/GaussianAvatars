@@ -100,7 +100,6 @@ class GaussianSplattingViewer:
         if self.gaussians.binding != None:
             self.num_timesteps = self.gaussians.num_timesteps
 
-            self.gaussians.select_mesh_by_timestep(self.timestep)
 
     
     def init_gaussians(self):
@@ -135,7 +134,7 @@ class GaussianSplattingViewer:
         return Cam
 
 
-    def render_vertices(self, vertices_file, cam, faces):
+    def render_vertices(self, vertices_file, cam):
         frames = np.load(vertices_file)
         start = 0
         for frame in frames:
@@ -148,7 +147,7 @@ class GaussianSplattingViewer:
                     # rgb
                     rgb_splatting = render(cam, self.gaussians, self.pipe, torch.tensor((1., 1., 1.)).cuda(), scaling_modifier=self.scaling_modifier)["render"].permute(1, 2, 0).contiguous()
                 if self.gaussians.binding != None and self.show_mesh:
-                    out_dict = self.mesh_renderer.render_from_camera(self.gaussians.verts, faces, cam)
+                    out_dict = self.mesh_renderer.render_from_camera(self.gaussians.verts, self.gaussians.faces.clone(), cam)
 
                     rgba_mesh = out_dict['rgba'].squeeze(0)  # (H, W, C)
                     rgb_mesh = rgba_mesh[:, :, :3]
@@ -174,18 +173,16 @@ class GaussianSplattingViewer:
                 plt.imsave(f'output/frame_{start:03d}.png', image_normalized)
                 start += 1
 
-    def render_params(self, params_dir, cam, faces):
+    def render_params(self, params_dir, cam):
         start= 0
         for frame_file in os.listdir(params_dir):
                 frame = torch.load(os.path.join(params_dir, frame_file))
                 flame_param = frame['flame']
+
                 self.flame_param = {
-                    'rotation': torch.zeros(1, 3),
                     'expr': torch.from_numpy(flame_param['exp']),
-                    'neck': torch.zeros(1, 3), 
-                    'jaw': torch.zeros(1, 3), # 6 
-                    'eyes': torch.zeros(1, 6), # 12
-                    'translation': torch.zeros(1, 3),
+                    'jaw': torch.from_numpy(flame_param['jaw']), # 6 
+                    'eyes': torch.from_numpy(flame_param['eyes']), # 6
                 }
                 
                 self.gaussians.update_mesh_by_param_dict(self.flame_param)
@@ -194,7 +191,7 @@ class GaussianSplattingViewer:
                     # rgb
                     rgb_splatting = render(cam, self.gaussians, self.pipe, torch.tensor((1., 1., 1.)).cuda(), scaling_modifier=self.scaling_modifier)["render"].permute(1, 2, 0).contiguous()
                 if self.gaussians.binding != None and self.show_mesh:
-                    out_dict = self.mesh_renderer.render_from_camera(self.gaussians.verts, faces, cam)
+                    out_dict = self.mesh_renderer.render_from_camera(self.gaussians.verts, self.gaussians.faces.clone(), cam)
 
                     rgba_mesh = out_dict['rgba'].squeeze(0)  # (H, W, C)
                     rgb_mesh = rgba_mesh[:, :, :3]
@@ -225,7 +222,6 @@ class GaussianSplattingViewer:
     def run(self, args):
         print("Running GaussianSplattingViewer...")
 
-        faces = self.gaussians.faces.clone()
         # faces = faces[selected_fid]
         cam = self.prepare_camera()
                             
@@ -233,10 +229,10 @@ class GaussianSplattingViewer:
             os.makedirs('output')
 
         if args.render_vertices:
-            self.render_vertices(args.render_vertices, cam, faces)
+            self.render_vertices(args.render_vertices, cam)
         
         else:
-            self.render_params(args.params_dir, cam, faces)
+            self.render_params(args.params_dir, cam)
 
 
 
